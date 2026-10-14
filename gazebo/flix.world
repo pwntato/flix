@@ -18,6 +18,71 @@
 		<include>
 			<uri>model://floor</uri>
 		</include>
+		<model name="surfaces"><!-- visuals for the optical flow surface patches, see surfaces in gazebo/simulator.cpp -->
+			<static>true</static>
+			<link name="link">
+				<visual name="blank">
+					<pose>3.0 0.0 0.0015 0 0 0</pose>
+					<geometry><box><size>2.000 4.000 0.003</size></box></geometry>
+					<material><ambient>0.95 0.95 0.95 1</ambient><diffuse>0.95 0.95 0.95 1</diffuse><specular>0 0 0 1</specular></material>
+				</visual>
+				<visual name="dim">
+					<pose>6.0 0.0 0.0015 0 0 0</pose>
+					<geometry><box><size>2.000 4.000 0.003</size></box></geometry>
+					<material><ambient>0.08 0.08 0.08 1</ambient><diffuse>0.08 0.08 0.08 1</diffuse><specular>0 0 0 1</specular></material>
+				</visual>
+				<visual name="stripe0">
+					<pose>8.1 0.0 0.0015 0 0 0</pose>
+					<geometry><box><size>0.200 4.000 0.003</size></box></geometry>
+					<material><ambient>0.95 0.95 0.95 1</ambient><diffuse>0.95 0.95 0.95 1</diffuse><specular>0 0 0 1</specular></material>
+				</visual>
+				<visual name="stripe1">
+					<pose>8.3 0.0 0.0015 0 0 0</pose>
+					<geometry><box><size>0.200 4.000 0.003</size></box></geometry>
+					<material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse><specular>0 0 0 1</specular></material>
+				</visual>
+				<visual name="stripe2">
+					<pose>8.5 0.0 0.0015 0 0 0</pose>
+					<geometry><box><size>0.200 4.000 0.003</size></box></geometry>
+					<material><ambient>0.95 0.95 0.95 1</ambient><diffuse>0.95 0.95 0.95 1</diffuse><specular>0 0 0 1</specular></material>
+				</visual>
+				<visual name="stripe3">
+					<pose>8.7 0.0 0.0015 0 0 0</pose>
+					<geometry><box><size>0.200 4.000 0.003</size></box></geometry>
+					<material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse><specular>0 0 0 1</specular></material>
+				</visual>
+				<visual name="stripe4">
+					<pose>8.9 0.0 0.0015 0 0 0</pose>
+					<geometry><box><size>0.200 4.000 0.003</size></box></geometry>
+					<material><ambient>0.95 0.95 0.95 1</ambient><diffuse>0.95 0.95 0.95 1</diffuse><specular>0 0 0 1</specular></material>
+				</visual>
+				<visual name="stripe5">
+					<pose>9.1 0.0 0.0015 0 0 0</pose>
+					<geometry><box><size>0.200 4.000 0.003</size></box></geometry>
+					<material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse><specular>0 0 0 1</specular></material>
+				</visual>
+				<visual name="stripe6">
+					<pose>9.3 0.0 0.0015 0 0 0</pose>
+					<geometry><box><size>0.200 4.000 0.003</size></box></geometry>
+					<material><ambient>0.95 0.95 0.95 1</ambient><diffuse>0.95 0.95 0.95 1</diffuse><specular>0 0 0 1</specular></material>
+				</visual>
+				<visual name="stripe7">
+					<pose>9.5 0.0 0.0015 0 0 0</pose>
+					<geometry><box><size>0.200 4.000 0.003</size></box></geometry>
+					<material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse><specular>0 0 0 1</specular></material>
+				</visual>
+				<visual name="stripe8">
+					<pose>9.7 0.0 0.0015 0 0 0</pose>
+					<geometry><box><size>0.200 4.000 0.003</size></box></geometry>
+					<material><ambient>0.95 0.95 0.95 1</ambient><diffuse>0.95 0.95 0.95 1</diffuse><specular>0 0 0 1</specular></material>
+				</visual>
+				<visual name="stripe9">
+					<pose>9.9 0.0 0.0015 0 0 0</pose>
+					<geometry><box><size>0.200 4.000 0.003</size></box></geometry>
+					<material><ambient>0.05 0.05 0.05 1</ambient><diffuse>0.05 0.05 0.05 1</diffuse><specular>0 0 0 1</specular></material>
+				</visual>
+			</link>
+		</model>
 		<include>
 			<uri>model://sun</uri>
 		</include>

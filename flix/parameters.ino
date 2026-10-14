@@ -68,6 +68,17 @@ Parameter parameters[] = {
 	{"ALT_CLIMB_WU", &climbRatePID.windup},
 	{"ALT_FLT_A", &altFilterA},
 	{"ALT_FLT_B", &altFilterB},
+	// optical flow
+	{"FLOW_Q_MIN", &flowQualityMin},
+	{"FLOW_RNG_MIN", &flowRangeMin},
+	{"FLOW_RNG_MAX", &flowRangeMax},
+	{"FLOW_RATE_MAX", &flowRateMax},
+	{"FLOW_FLT_A", &flowFilterA},
+	{"VEL_MAX", &velMax},
+	{"VEL_TILT_MAX", &velTiltMax},
+	{"VEL_P", &velXPID.p, syncVelocityPID},
+	{"VEL_I", &velXPID.i, syncVelocityPID},
+	{"VEL_WU", &velXPID.windup, syncVelocityPID},
 	// imu
 	{"IMU_MODEL", &imuModel},
 	{"IMU_BUS", &imuBus},

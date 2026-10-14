@@ -21,6 +21,7 @@ void estimate() {
 	applyAcc();
 	applyLevel();
 	estimateAltitude();
+	estimateFlow();
 }
 
 void applyGyro() {

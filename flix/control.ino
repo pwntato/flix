@@ -9,7 +9,7 @@
 #include "filter.h"
 #include "util.h"
 
-const int RAW = 0, ACRO = 1, STAB = 2, AUTO = 3, ALT = 5; // flight modes (4 is reserved for POS)
+const int RAW = 0, ACRO = 1, STAB = 2, AUTO = 3, ALT = 5, VEL = 6; // flight modes (4 is reserved for POS)
 int mode = STAB;
 bool armed = false;
 
@@ -31,6 +31,10 @@ int flightModes[] = {STAB, STAB, STAB}; // map for rc mode switch
 
 extern const int MOT_RL, MOT_RR, MOT_FR, MOT_FL;
 extern float controlRoll, controlPitch, controlThrottle, controlYaw, controlMode;
+extern bool flowValid;
+extern float altitude;
+extern void controlVelocity(float& roll, float& pitch);
+extern float controlAltitude();
 
 void control() {
 	interpretControls();
@@ -54,14 +58,17 @@ void interpretControls() {
 
 	thrustTarget = controlThrottle;
 
-	if (mode == STAB || mode == ALT) {
+	float roll = controlRoll, pitch = controlPitch; // sticks, or the velocity controller output
+	if (mode == VEL) controlVelocity(roll, pitch);
+
+	if (mode == STAB || mode == ALT || mode == VEL) {
 		float yawTarget = attitudeTarget.getYaw();
 		if (!armed || invalid(yawTarget) || controlYaw != 0) yawTarget = attitude.getYaw(); // reset yaw target
-		attitudeTarget = Quaternion::fromEuler(Vector(controlRoll * tiltMax, controlPitch * tiltMax, yawTarget));
+		attitudeTarget = Quaternion::fromEuler(Vector(roll * tiltMax, pitch * tiltMax, yawTarget));
 		ratesExtra = Vector(0, 0, -controlYaw * maxRate.z); // positive yaw stick means clockwise rotation in FLU
 	}
 
-	if (mode == ALT) thrustTarget = controlAltitude(); // throttle stick commands climb rate
+	if (mode == ALT || mode == VEL) thrustTarget = controlAltitude(); // throttle stick commands climb rate
 
 	if (mode == ACRO) {
 		attitudeTarget.invalidate(); // skip attitude control
@@ -154,6 +161,7 @@ const char* getModeName() {
 		case STAB: return "STAB";
 		case AUTO: return "AUTO";
 		case ALT: return "ALT";
+		case VEL: return "VEL";
 		default: return "UNKNOWN";
 	}
 }

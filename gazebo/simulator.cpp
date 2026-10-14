@@ -19,6 +19,7 @@
 #include "flix.h"
 
 #include "altitude.ino"
+#include "flow.ino"
 #include "console.ino"
 #include "control.ino"
 #include "estimate.ino"
@@ -33,6 +34,21 @@
 #include "time.ino"
 
 using ignition::math::Vector3d;
+
+// Floor surfaces as seen by the optical flow sensor (the visuals are in flix.world)
+struct Surface {
+	const char *name;
+	double x0, x1, y0, y1; // area, m
+	int quality; // surface quality the sensor reports at low height, 0-255
+	double noise; // flow noise multiplier
+	double gain; // measured flow / true flow
+};
+const Surface defaultSurface = { "textured", 0, 0, 0, 0, 200, 1, 1 };
+const Surface surfaces[] = {
+	{ "blank", 2, 4, -2, 2, 0, 1, 0 }, // no features: the sensor reports no motion and a quality of zero
+	{ "dim", 5, 7, -2, 2, 35, 6, 1 }, // too dark: low quality, very noisy
+	{ "stripes", 8, 10, -2, 2, 180, 1, 0.5 }, // repeating pattern: good quality but the wrong speed
+};
 using namespace gazebo;
 using namespace std;
 
@@ -43,6 +59,7 @@ private:
 	sensors::ImuSensorPtr imu;
 	sensors::RaySensorPtr rangefinder;
 	common::Time rangefinderTime;
+	double flowTime = 0;
 	event::ConnectionPtr updateConnection, resetConnection;
 	transport::NodePtr nodeHandle;
 	transport::PublisherPtr motorPub[4];
@@ -79,6 +96,7 @@ public:
 		acc = this->accFilter.update(Vector(imu->LinearAcceleration().X(), imu->LinearAcceleration().Y(), imu->LinearAcceleration().Z()));
 
 		readRangefinder();
+		readFlow();
 
 		voltage = 4.2f; // dummy voltage value
 
@@ -107,6 +125,36 @@ public:
 		if (!hit && model->WorldPose().Z() < 0.05) { range = 0; hit = true; } // the ray starts inside the ground when landed
 		rangefinderRange = hit ? range : NAN;
 		rangefinderUpdated = true;
+	}
+
+	// Downward optical flow sensor (PMW3901-like): 100 Hz, angular rate of the ground in the body axes
+	void readFlow() {
+		double now = model->GetWorld()->SimTime().Double();
+		if (now - flowTime < 0.01) return;
+		flowTime = now;
+
+		Vector3d pos = model->WorldPose().Pos();
+		Vector3d v = body->RelativeLinearVel();
+		Vector3d w = imu->AngularVelocity();
+		double h = std::isnan(rangefinderRange) ? 0 : rangefinderRange;
+
+		Surface s = defaultSurface;
+		for (const Surface& area : surfaces) {
+			if (pos.X() >= area.x0 && pos.X() <= area.x1 && pos.Y() >= area.y0 && pos.Y() <= area.y1) s = area;
+		}
+
+		double q = s.quality;
+		if (h < 0.08) q = 0; // too close, out of focus
+		else if (h > 1) q *= std::max(0.2, 1 - (h - 1) / 4); // less detail from higher up
+
+		double noise = 0.02 * s.noise; // rad/s
+		double fx = (-v.X() / std::max(h, 0.05) + w.Y()) * s.gain;
+		double fy = (-v.Y() / std::max(h, 0.05) - w.X()) * s.gain;
+		if (s.gain == 0) fx = fy = 0;
+		flowX = fx + ignition::math::Rand::DblNormal(0, noise);
+		flowY = fy + ignition::math::Rand::DblNormal(0, noise);
+		flowQuality = (int)q;
+		flowUpdated = true;
 	}
 
 	void applyMotorForces() {

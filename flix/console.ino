@@ -9,7 +9,7 @@
 #include "filter.h"
 
 extern const int MOT_RL, MOT_RR, MOT_FR, MOT_FL;
-extern const int RAW, ACRO, STAB, AUTO, ALT;
+extern const int RAW, ACRO, STAB, AUTO, ALT, VEL;
 extern const int W_AP, W_STA, W_ESPNOW;
 extern float t, dt, loopRate;
 extern uint16_t channels[16];
