@@ -35,6 +35,16 @@
 					</linear_acceleration>
 				</imu>
 			</sensor>
+			<sensor name="rangefinder" type="ray"><!-- downward ToF rangefinder, VL53L1X-like -->
+				<always_on>1</always_on>
+				<update_rate>50</update_rate>
+				<pose>0 0 -0.0139 0 1.5708 0</pose><!-- just below the body, so the ray does not hit the drone itself -->
+				<ray>
+					<scan><horizontal><samples>1</samples><resolution>1</resolution><min_angle>0</min_angle><max_angle>0</max_angle></horizontal></scan>
+					<range><min>0</min><max>4.0</max><resolution>0.001</resolution></range>
+					<noise><type>gaussian</type><mean>0</mean><stddev>0.01</stddev></noise>
+				</ray>
+			</sensor>
 			<visual name="body">
 				<geometry>
 					<mesh><uri>model://flix/flix.stl</uri></mesh>

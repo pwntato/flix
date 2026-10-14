@@ -34,7 +34,7 @@ void sendMavlink() {
 	if (telemetrySlow) {
 		mavlink_msg_heartbeat_pack(mavlinkSysId, MAV_COMP_ID_AUTOPILOT1, &msg, MAV_TYPE_QUADROTOR, MAV_AUTOPILOT_FLIX,
 			(armed ? MAV_MODE_FLAG_SAFETY_ARMED : 0) |
-			((mode == STAB) ? MAV_MODE_FLAG_STABILIZE_ENABLED : 0) |
+			((mode == STAB || mode == ALT) ? MAV_MODE_FLAG_STABILIZE_ENABLED : 0) |
 			((mode == AUTO) ? MAV_MODE_FLAG_AUTO_ENABLED : MAV_MODE_FLAG_MANUAL_INPUT_ENABLED),
 			mode, MAV_STATE_STANDBY);
 		sendMessage(&msg);
@@ -284,7 +284,7 @@ int handleMavlinkCommand(const void *_m) {
 	}
 
 	if (m.command == MAV_CMD_DO_SET_MODE) {
-		if (m.param2 < 0 || m.param2 > AUTO) return MAV_RESULT_DENIED; // incorrect mode
+		if (m.param2 < 0 || (m.param2 > AUTO && m.param2 != ALT)) return MAV_RESULT_DENIED; // incorrect mode
 		mode = m.param2;
 		return MAV_RESULT_ACCEPTED;
 	}

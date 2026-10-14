@@ -51,7 +51,7 @@ void autoFailsafe() {
 // Disarm if tilted too much
 void tiltFailsafe() {
 	if (!armed) return;
-	if (mode != STAB) return;
+	if (mode != STAB && mode != ALT) return;
 
 	Vector up = Quaternion::rotateVector(Vector(0, 0, 1), attitude);
 	float tilt = acos(up.z);

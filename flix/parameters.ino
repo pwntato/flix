@@ -58,6 +58,16 @@ Parameter parameters[] = {
 	{"CTL_FLT_MODE_0", &flightModes[0]},
 	{"CTL_FLT_MODE_1", &flightModes[1]},
 	{"CTL_FLT_MODE_2", &flightModes[2]},
+	// altitude
+	{"ALT_P", &altitudeP},
+	{"ALT_CLIMB_MAX", &climbRateMax},
+	{"ALT_MAX", &altitudeMax},
+	{"ALT_HOVER", &hoverThrust},
+	{"ALT_CLIMB_P", &climbRatePID.p},
+	{"ALT_CLIMB_I", &climbRatePID.i},
+	{"ALT_CLIMB_WU", &climbRatePID.windup},
+	{"ALT_FLT_A", &altFilterA},
+	{"ALT_FLT_B", &altFilterB},
 	// imu
 	{"IMU_MODEL", &imuModel},
 	{"IMU_BUS", &imuBus},

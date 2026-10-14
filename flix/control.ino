@@ -9,7 +9,7 @@
 #include "filter.h"
 #include "util.h"
 
-const int RAW = 0, ACRO = 1, STAB = 2, AUTO = 3; // flight modes
+const int RAW = 0, ACRO = 1, STAB = 2, AUTO = 3, ALT = 5; // flight modes (4 is reserved for POS)
 int mode = STAB;
 bool armed = false;
 
@@ -54,12 +54,14 @@ void interpretControls() {
 
 	thrustTarget = controlThrottle;
 
-	if (mode == STAB) {
+	if (mode == STAB || mode == ALT) {
 		float yawTarget = attitudeTarget.getYaw();
 		if (!armed || invalid(yawTarget) || controlYaw != 0) yawTarget = attitude.getYaw(); // reset yaw target
 		attitudeTarget = Quaternion::fromEuler(Vector(controlRoll * tiltMax, controlPitch * tiltMax, yawTarget));
 		ratesExtra = Vector(0, 0, -controlYaw * maxRate.z); // positive yaw stick means clockwise rotation in FLU
 	}
+
+	if (mode == ALT) thrustTarget = controlAltitude(); // throttle stick commands climb rate
 
 	if (mode == ACRO) {
 		attitudeTarget.invalidate(); // skip attitude control
@@ -151,6 +153,7 @@ const char* getModeName() {
 		case ACRO: return "ACRO";
 		case STAB: return "STAB";
 		case AUTO: return "AUTO";
+		case ALT: return "ALT";
 		default: return "UNKNOWN";
 	}
 }

@@ -18,6 +18,7 @@
 #include "Arduino.h"
 #include "flix.h"
 
+#include "altitude.ino"
 #include "console.ino"
 #include "control.ino"
 #include "estimate.ino"
@@ -40,6 +41,8 @@ private:
 	physics::ModelPtr model;
 	physics::LinkPtr body;
 	sensors::ImuSensorPtr imu;
+	sensors::RaySensorPtr rangefinder;
+	common::Time rangefinderTime;
 	event::ConnectionPtr updateConnection, resetConnection;
 	transport::NodePtr nodeHandle;
 	transport::PublisherPtr motorPub[4];
@@ -50,6 +53,7 @@ public:
 		this->model = _parent;
 		this->body = this->model->GetLink("body");
 		this->imu = dynamic_pointer_cast<sensors::ImuSensor>(sensors::get_sensor(model->GetScopedName(true) + "::body::imu")); // default::flix::body::imu
+		this->rangefinder = dynamic_pointer_cast<sensors::RaySensor>(sensors::get_sensor(model->GetScopedName(true) + "::body::rangefinder")); // default::flix::body::rangefinder
 		this->updateConnection = event::Events::ConnectWorldUpdateBegin(std::bind(&ModelFlix::OnUpdate, this));
 		this->resetConnection = event::Events::ConnectWorldReset(std::bind(&ModelFlix::OnReset, this));
 		initNode();
@@ -74,6 +78,8 @@ public:
 		gyro = Vector(imu->AngularVelocity().X(), imu->AngularVelocity().Y(), imu->AngularVelocity().Z());
 		acc = this->accFilter.update(Vector(imu->LinearAcceleration().X(), imu->LinearAcceleration().Y(), imu->LinearAcceleration().Z()));
 
+		readRangefinder();
+
 		voltage = 4.2f; // dummy voltage value
 
 		readRC();
@@ -90,6 +96,17 @@ public:
 		publishTopics();
 		logData();
 		syncParameters();
+	}
+
+	void readRangefinder() {
+		common::Time measured = rangefinder->LastMeasurementTime();
+		if (measured == rangefinderTime) return; // no new reading
+		rangefinderTime = measured;
+		double range = rangefinder->Range(0);
+		bool hit = std::isfinite(range) && range < rangefinder->RangeMax();
+		if (!hit && model->WorldPose().Z() < 0.05) { range = 0; hit = true; } // the ray starts inside the ground when landed
+		rangefinderRange = hit ? range : NAN;
+		rangefinderUpdated = true;
 	}
 
 	void applyMotorForces() {

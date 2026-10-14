@@ -20,6 +20,7 @@ void estimate() {
 	applyGyro();
 	applyAcc();
 	applyLevel();
+	estimateAltitude();
 }
 
 void applyGyro() {
