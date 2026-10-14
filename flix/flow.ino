@@ -136,20 +136,49 @@ void estimateFlow() {
 	if (!flowValid) velX = velY = 0;
 }
 
-// Replace the roll and pitch sticks (range [-1, 1]) with the output of the velocity controller
+// Replace the roll and pitch sticks (range [-1, 1]) with the output of the velocity controller.
+// The sticks never change meaning while deflected: velocity hold engages only with centered sticks, and when the
+// velocity is lost with deflected sticks the drone levels out and ignores roll and pitch until they are centered.
 void controlVelocity(float& roll, float& pitch) {
-	static bool active = false, trusted = true;
+	static bool active = false, latched = false, trusted = true;
+	bool centered = fabs(controlRoll) < 0.1 && fabs(controlPitch) < 0.1;
+	bool available = flowValid && !isnan(altitude);
 
-	if (!armed || !flowValid || isnan(altitude)) { // no velocity information: plain angle control by the sticks
-		if (active && armed) print("Velocity lost, velocity hold off\n");
-		active = false;
+	if (!armed) {
+		active = latched = false;
 		velXPID.reset();
 		velYPID.reset();
 		return;
 	}
 
-	if (!active) print("Velocity hold on\n");
-	active = true;
+	if (latched) {
+		if (!centered) {
+			roll = pitch = 0;
+			return;
+		}
+		latched = false;
+		print("Sticks centered, control restored\n");
+	}
+
+	if (active && !available) {
+		active = false;
+		velXPID.reset();
+		velYPID.reset();
+		if (centered) {
+			print("Velocity lost, velocity hold off\n");
+		} else {
+			latched = true;
+			roll = pitch = 0;
+			print("Velocity lost, leveling out, center the sticks to take over\n");
+		}
+		return;
+	}
+
+	if (!active) {
+		if (!available || !centered) return; // plain angle control by the sticks
+		active = true;
+		print("Velocity hold on\n");
+	}
 
 	if (trusted && !flowTrusted) print("Flow disagrees with the accelerometer, ignoring it\n");
 	trusted = flowTrusted;
