@@ -9,6 +9,7 @@
 #include <gazebo/physics/physics.hh>
 #include <gazebo/common/common.hh>
 #include <gazebo/sensors/sensors.hh>
+#include <gazebo/rendering/rendering.hh>
 #include <gazebo/msgs/msgs.hh>
 #include <ignition/math/Vector3.hh>
 #include <ignition/math/Pose3.hh>
@@ -17,6 +18,7 @@
 #include <cstdio>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#include <jpeglib.h>
 
 #include "Arduino.h"
 #include "flix.h"
@@ -63,6 +65,8 @@ private:
 	sensors::ImuSensorPtr imu;
 	sensors::RaySensorPtr rangefinder;
 	common::Time rangefinderTime;
+	sensors::CameraSensorPtr camera;
+	event::ConnectionPtr cameraConnection;
 	sensors::RaySensorPtr walls[WALL_COUNT];
 	common::Time wallTimes[WALL_COUNT];
 	double flowTime = 0;
@@ -81,6 +85,9 @@ public:
 		this->rangefinder = dynamic_pointer_cast<sensors::RaySensor>(sensors::get_sensor(model->GetScopedName(true) + "::body::rangefinder")); // default::flix::body::rangefinder
 		const char *wallNames[WALL_COUNT] = { "wall_front", "wall_left", "wall_back", "wall_right" };
 		for (int i = 0; i < WALL_COUNT; i++) this->walls[i] = dynamic_pointer_cast<sensors::RaySensor>(sensors::get_sensor(model->GetScopedName(true) + "::body::" + wallNames[i]));
+		this->camera = dynamic_pointer_cast<sensors::CameraSensor>(sensors::get_sensor(model->GetScopedName(true) + "::body::camera"));
+		if (this->camera) this->cameraConnection = this->camera->Camera()->ConnectNewImageFrame(
+			std::bind(&ModelFlix::onCameraFrame, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 		this->updateConnection = event::Events::ConnectWorldUpdateBegin(std::bind(&ModelFlix::OnUpdate, this));
 		this->resetConnection = event::Events::ConnectWorldReset(std::bind(&ModelFlix::OnReset, this));
 		initNode();
@@ -180,6 +187,37 @@ public:
 			else n = snprintf(buf, sizeof(buf), "{\"kind\":\"range\",\"range\":%.3f}", rangefinderRange);
 			sendto(labSocket, buf, n, 0, (sockaddr *)&addr, sizeof(addr));
 		}
+	}
+
+	// Camera frames as JPEGs in UDP datagrams to 127.0.0.1:5612, simulator only (the lab relay serves them over TCP)
+	void onCameraFrame(const unsigned char *image, unsigned int width, unsigned int height) {
+		if (labSocket < 0) labSocket = socket(AF_INET, SOCK_DGRAM, 0);
+		unsigned char *jpeg = nullptr;
+		unsigned long size = 0;
+		jpeg_compress_struct cinfo;
+		jpeg_error_mgr jerr;
+		cinfo.err = jpeg_std_error(&jerr);
+		jpeg_create_compress(&cinfo);
+		jpeg_mem_dest(&cinfo, &jpeg, &size);
+		cinfo.image_width = width;
+		cinfo.image_height = height;
+		cinfo.input_components = 3;
+		cinfo.in_color_space = JCS_RGB;
+		jpeg_set_defaults(&cinfo);
+		jpeg_set_quality(&cinfo, 75, TRUE);
+		jpeg_start_compress(&cinfo, TRUE);
+		while (cinfo.next_scanline < height) {
+			const unsigned char *row = image + cinfo.next_scanline * width * 3;
+			jpeg_write_scanlines(&cinfo, (JSAMPARRAY)&row, 1);
+		}
+		jpeg_finish_compress(&cinfo);
+		jpeg_destroy_compress(&cinfo);
+		sockaddr_in addr = {};
+		addr.sin_family = AF_INET;
+		addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+		addr.sin_port = htons(5612);
+		if (size < 65000) sendto(labSocket, jpeg, size, 0, (sockaddr *)&addr, sizeof(addr));
+		free(jpeg);
 	}
 
 	void readWalls() {

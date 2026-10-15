@@ -85,6 +85,16 @@
 					<noise><type>gaussian</type><mean>0</mean><stddev>0.01</stddev></noise>
 				</ray>
 			</sensor>
+			<sensor name="camera" type="camera"><!-- forward-looking camera -->
+				<always_on>1</always_on>
+				<update_rate>15</update_rate>
+				<pose>0.06 0 0.01 0 0 0</pose><!-- in front of the body, so it does not see the drone itself -->
+				<camera>
+					<horizontal_fov>1.4</horizontal_fov>
+					<image><width>320</width><height>240</height><format>R8G8B8</format></image>
+					<clip><near>0.02</near><far>30</far></clip>
+				</camera>
+			</sensor>
 			<visual name="body">
 				<geometry>
 					<mesh><uri>model://flix/flix.stl</uri></mesh>
