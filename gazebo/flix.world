@@ -83,6 +83,19 @@
 				</visual>
 			</link>
 		</model>
+		<model name="walls"><!-- a room for the horizontal rangefinders (the sensors see walls only within 4 m) -->
+			<static>true</static>
+			<link name="link">
+				<collision name="front"><pose>11.5 0 0.75 0 0 0</pose><geometry><box><size>0.1 5.1 1.5</size></box></geometry></collision>
+				<visual name="front"><pose>11.5 0 0.75 0 0 0</pose><geometry><box><size>0.1 5.1 1.5</size></box></geometry><material><ambient>0.7 0.6 0.5 1</ambient><diffuse>0.7 0.6 0.5 1</diffuse><specular>0 0 0 1</specular></material></visual>
+				<collision name="back"><pose>-1.5 0 0.75 0 0 0</pose><geometry><box><size>0.1 5.1 1.5</size></box></geometry></collision>
+				<visual name="back"><pose>-1.5 0 0.75 0 0 0</pose><geometry><box><size>0.1 5.1 1.5</size></box></geometry><material><ambient>0.7 0.6 0.5 1</ambient><diffuse>0.7 0.6 0.5 1</diffuse><specular>0 0 0 1</specular></material></visual>
+				<collision name="left"><pose>5 2.55 0.75 0 0 0</pose><geometry><box><size>13.1 0.1 1.5</size></box></geometry></collision>
+				<visual name="left"><pose>5 2.55 0.75 0 0 0</pose><geometry><box><size>13.1 0.1 1.5</size></box></geometry><material><ambient>0.7 0.6 0.5 1</ambient><diffuse>0.7 0.6 0.5 1</diffuse><specular>0 0 0 1</specular></material></visual>
+				<collision name="right"><pose>5 -2.55 0.75 0 0 0</pose><geometry><box><size>13.1 0.1 1.5</size></box></geometry></collision>
+				<visual name="right"><pose>5 -2.55 0.75 0 0 0</pose><geometry><box><size>13.1 0.1 1.5</size></box></geometry><material><ambient>0.7 0.6 0.5 1</ambient><diffuse>0.7 0.6 0.5 1</diffuse><specular>0 0 0 1</specular></material></visual>
+			</link>
+		</model>
 		<include>
 			<uri>model://sun</uri>
 		</include>

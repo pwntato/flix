@@ -13,6 +13,7 @@ extern int wifiMode, wifiLongRange, wifiBroadcast, udpLocalPort, udpRemotePort, 
 extern float rcLossTimeout, descendTime, disarmTilt;
 extern float voltageScale;
 extern LowPassFilter<float> voltageFilter;
+extern float wallFilterA, wallFilterB, wallJump, wallSettle, wallLossTimeout, wallGyroMax, wallLag;
 
 #include "config.h"
 
@@ -84,6 +85,18 @@ Parameter parameters[] = {
 	{"VEL_P", &velXPID.p, syncVelocityPID},
 	{"VEL_I", &velXPID.i, syncVelocityPID},
 	{"VEL_WU", &velXPID.windup, syncVelocityPID},
+	// wall rangefinders
+	{"WALL_FLT_A", &wallFilterA},
+	{"WALL_FLT_B", &wallFilterB},
+	{"WALL_JUMP", &wallJump},
+	{"WALL_SETTLE", &wallSettle},
+	{"WALL_LOSS_T", &wallLossTimeout},
+	{"WALL_GYRO_MAX", &wallGyroMax},
+	{"WALL_MISMATCH", &wallMismatch},
+	{"WALL_MISM_T", &wallMismatchTime},
+	{"WALL_VEL_N", &wallVelNoise},
+	{"WALL_TAKEOVER", &wallTakeoverDelay},
+	{"WALL_LAG", &wallLag},
 	// imu
 	{"IMU_MODEL", &imuModel},
 	{"IMU_BUS", &imuBus},

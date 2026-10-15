@@ -45,6 +45,46 @@
 					<noise><type>gaussian</type><mean>0</mean><stddev>0.01</stddev></noise>
 				</ray>
 			</sensor>
+			<sensor name="wall_front" type="ray"><!-- horizontal ToF rangefinder looking front, VL53L1X-like -->
+				<always_on>1</always_on>
+				<update_rate>50</update_rate>
+				<pose>0.08 0 0 0 0 0</pose><!-- outside the body, so the ray does not hit the drone itself -->
+				<ray>
+					<scan><horizontal><samples>1</samples><resolution>1</resolution><min_angle>0</min_angle><max_angle>0</max_angle></horizontal></scan>
+					<range><min>0</min><max>4.0</max><resolution>0.001</resolution></range>
+					<noise><type>gaussian</type><mean>0</mean><stddev>0.01</stddev></noise>
+				</ray>
+			</sensor>
+			<sensor name="wall_left" type="ray"><!-- horizontal ToF rangefinder looking left, VL53L1X-like -->
+				<always_on>1</always_on>
+				<update_rate>50</update_rate>
+				<pose>0 0.08 0 0 0 1.5708</pose><!-- outside the body, so the ray does not hit the drone itself -->
+				<ray>
+					<scan><horizontal><samples>1</samples><resolution>1</resolution><min_angle>0</min_angle><max_angle>0</max_angle></horizontal></scan>
+					<range><min>0</min><max>4.0</max><resolution>0.001</resolution></range>
+					<noise><type>gaussian</type><mean>0</mean><stddev>0.01</stddev></noise>
+				</ray>
+			</sensor>
+			<sensor name="wall_back" type="ray"><!-- horizontal ToF rangefinder looking back, VL53L1X-like -->
+				<always_on>1</always_on>
+				<update_rate>50</update_rate>
+				<pose>-0.08 0 0 0 0 3.14159</pose><!-- outside the body, so the ray does not hit the drone itself -->
+				<ray>
+					<scan><horizontal><samples>1</samples><resolution>1</resolution><min_angle>0</min_angle><max_angle>0</max_angle></horizontal></scan>
+					<range><min>0</min><max>4.0</max><resolution>0.001</resolution></range>
+					<noise><type>gaussian</type><mean>0</mean><stddev>0.01</stddev></noise>
+				</ray>
+			</sensor>
+			<sensor name="wall_right" type="ray"><!-- horizontal ToF rangefinder looking right, VL53L1X-like -->
+				<always_on>1</always_on>
+				<update_rate>50</update_rate>
+				<pose>0 -0.08 0 0 0 -1.5708</pose><!-- outside the body, so the ray does not hit the drone itself -->
+				<ray>
+					<scan><horizontal><samples>1</samples><resolution>1</resolution><min_angle>0</min_angle><max_angle>0</max_angle></horizontal></scan>
+					<range><min>0</min><max>4.0</max><resolution>0.001</resolution></range>
+					<noise><type>gaussian</type><mean>0</mean><stddev>0.01</stddev></noise>
+				</ray>
+			</sensor>
 			<visual name="body">
 				<geometry>
 					<mesh><uri>model://flix/flix.stl</uri></mesh>

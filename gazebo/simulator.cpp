@@ -20,6 +20,7 @@
 
 #include "altitude.ino"
 #include "flow.ino"
+#include "walls.ino"
 #include "console.ino"
 #include "control.ino"
 #include "estimate.ino"
@@ -59,6 +60,8 @@ private:
 	sensors::ImuSensorPtr imu;
 	sensors::RaySensorPtr rangefinder;
 	common::Time rangefinderTime;
+	sensors::RaySensorPtr walls[WALL_COUNT];
+	common::Time wallTimes[WALL_COUNT];
 	double flowTime = 0;
 	event::ConnectionPtr updateConnection, resetConnection;
 	transport::NodePtr nodeHandle;
@@ -71,6 +74,8 @@ public:
 		this->body = this->model->GetLink("body");
 		this->imu = dynamic_pointer_cast<sensors::ImuSensor>(sensors::get_sensor(model->GetScopedName(true) + "::body::imu")); // default::flix::body::imu
 		this->rangefinder = dynamic_pointer_cast<sensors::RaySensor>(sensors::get_sensor(model->GetScopedName(true) + "::body::rangefinder")); // default::flix::body::rangefinder
+		const char *wallNames[WALL_COUNT] = { "wall_front", "wall_left", "wall_back", "wall_right" };
+		for (int i = 0; i < WALL_COUNT; i++) this->walls[i] = dynamic_pointer_cast<sensors::RaySensor>(sensors::get_sensor(model->GetScopedName(true) + "::body::" + wallNames[i]));
 		this->updateConnection = event::Events::ConnectWorldUpdateBegin(std::bind(&ModelFlix::OnUpdate, this));
 		this->resetConnection = event::Events::ConnectWorldReset(std::bind(&ModelFlix::OnReset, this));
 		initNode();
@@ -96,6 +101,7 @@ public:
 		acc = this->accFilter.update(Vector(imu->LinearAcceleration().X(), imu->LinearAcceleration().Y(), imu->LinearAcceleration().Z()));
 
 		readRangefinder();
+		readWalls();
 		readFlow();
 
 		voltage = 4.2f; // dummy voltage value
@@ -125,6 +131,18 @@ public:
 		if (!hit && model->WorldPose().Z() < 0.05) { range = 0; hit = true; } // the ray starts inside the ground when landed
 		rangefinderRange = hit ? range : NAN;
 		rangefinderUpdated = true;
+	}
+
+	void readWalls() {
+		for (int i = 0; i < WALL_COUNT; i++) {
+			common::Time measured = walls[i]->LastMeasurementTime();
+			if (measured == wallTimes[i]) continue; // no new reading
+			wallTimes[i] = measured;
+			double range = walls[i]->Range(0);
+			bool hit = std::isfinite(range) && range < walls[i]->RangeMax();
+			wallRange[i] = hit ? range : NAN;
+			wallUpdated[i] = true;
+		}
 	}
 
 	// Downward optical flow sensor (PMW3901-like): 100 Hz, angular rate of the ground in the body axes

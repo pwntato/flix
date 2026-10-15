@@ -14,6 +14,8 @@ extern bool landed;
 extern float climbRate;
 extern float rangefinderRange, altitude;
 extern float controlRoll, controlPitch, tiltMax;
+extern float wallVelX, wallVelY, wallLag;
+extern bool wallVelUpdated;
 
 float flowX = 0, flowY = 0; // latest flow, rad/s, in the body axes (see estimateFlow for the sign convention)
 int flowQuality = 0; // surface quality reported by the sensor, 0-255
@@ -34,6 +36,11 @@ float accelNoise = 0.15; // m/s^2 per sqrt(Hz), accelerometer noise including at
 float accelBiasNoise = 0.02; // m/s^2 per sqrt(s), how fast the accelerometer bias may change
 float velSigmaMax = 0.25; // m/s, the estimate is not used above this uncertainty
 float flowLossTimeout = 0.5; // s, give up this long after the last accepted flow reading (the accelerometer cannot vouch for longer)
+
+float wallMismatch = 0.15; // m/s, the flow velocity may differ this much from the wall distance change
+float wallVelNoise = 0.05; // m/s, noise of the wall velocity
+float wallTakeoverDelay = 0.15; // s, the walls provide the velocity when the flow has not been accepted this long
+float wallMismatchTime = 0.3; // s, flow is declared wrong after disagreeing with the walls this long (and right again after agreeing 3x as long)
 
 float velMax = 1.0; // m/s at full stick
 float velTiltMax = radians(15); // max tilt commanded by the velocity controller
@@ -81,14 +88,43 @@ struct VelocityFilter {
 } velFilterX, velFilterY;
 
 static bool velInitialized = false;
-static float flowTime = NAN; // time of the last accepted flow reading
+static float velTime[2] = { NAN, NAN }; // time of the last accepted measurement of each axis, from the flow or the walls
+static float flowAcceptedTime = NAN; // time of the last accepted flow reading
+static float wallsSince = NAN; // since when the walls, not the flow, provide the velocity (NAN if not)
+static bool wallsAnnounced = false;
+
+// Compare the flow with the walls, which measure the speed independently: a surface that makes the flow sensor read the
+// wrong speed at good quality (a repeating pattern) is invisible to the accelerometer at constant speed, but not to them.
+// Returns true while the flow is declared wrong.
+static bool flowVetoed(float vx, float vy, const Vector& linear) {
+	static float disagree = 0, agree = 0, compared = NAN;
+	static bool vetoed = false;
+	float measDt = isnan(compared) ? 0 : fminf(t - compared, 0.1f);
+	compared = t;
+	if (!velInitialized) {
+		vetoed = false;
+		disagree = agree = 0;
+		return false;
+	}
+	bool comparable = !isnan(wallVelX) || !isnan(wallVelY);
+	// the wall velocity lags behind by its filter delay, which matters when speeding up
+	float errX = isnan(wallVelX) ? 0 : fabs(vx - wallVelX) - wallLag * fabs(linear.x);
+	float errY = isnan(wallVelY) ? 0 : fabs(vy - wallVelY) - wallLag * fabs(linear.y);
+	if (comparable && fmaxf(errX, errY) > wallMismatch) { disagree += measDt; agree = 0; }
+	else if (comparable) { agree += measDt; disagree = 0; }
+	else disagree = agree = 0;
+	if (!vetoed && disagree > wallMismatchTime) { vetoed = true; print("Flow disagrees with the walls, ignoring it\n"); }
+	if (vetoed && agree > 3 * wallMismatchTime) { vetoed = false; print("Flow agrees with the walls again\n"); }
+	return vetoed;
+}
 
 void estimateFlow() {
 	Vector up = Quaternion::rotateVector(Vector(0, 0, 1), attitude);
+	Vector linear = acc - up * ONE_G; // linear acceleration in the body frame
+	static bool vetoed = false;
 
 	if (velInitialized) {
-		// linear acceleration in the body frame, and its rotation term (the body frame turns with the drone)
-		Vector linear = acc - up * ONE_G;
+		// the rotation term: the body frame turns with the drone
 		float vz = climbRate * up.z;
 		velFilterX.predict(linear.x, gyro.y * vz - gyro.z * velFilterY.v);
 		velFilterY.predict(linear.y, gyro.z * velFilterX.v - gyro.x * vz);
@@ -98,7 +134,7 @@ void estimateFlow() {
 		if (!velInitialized) { velFilterX.init(0, 0.02); velFilterY.init(0, 0.02); velInitialized = true; }
 		velFilterX.update(0, 0.02);
 		velFilterY.update(0, 0.02);
-		flowTime = t;
+		velTime[0] = velTime[1] = flowAcceptedTime = t;
 	}
 
 	if (flowUpdated) {
@@ -111,27 +147,58 @@ void estimateFlow() {
 			// flowX = -vx / h + gyro.y, flowY = -vy / h - gyro.x
 			float vx = (gyro.y - flowX) * h;
 			float vy = -(flowY + gyro.x) * h;
+			vetoed = flowVetoed(vx, vy, linear);
 			float gateNoise = fmaxf(flowNoise, 0.03f * h);
 			float noise = gateNoise * constrain(200.0f / fmaxf(flowQuality, 25), 1.0f, 8.0f); // worse surface, less trust
-			if (!velInitialized) {
+			if (vetoed) {
+				// the walls provide the velocity
+			} else if (!velInitialized) {
 				velFilterX.init(vx, noise);
 				velFilterY.init(vy, noise);
 				velInitialized = true;
 				flowTrusted = true;
-				flowTime = t;
+				velTime[0] = velTime[1] = flowAcceptedTime = t;
 			} else {
 				bool okX = velFilterX.update(vx, noise, gateNoise);
 				bool okY = velFilterY.update(vy, noise, gateNoise);
 				flowTrusted = okX && okY;
-				if (flowTrusted) flowTime = t;
+				if (flowTrusted) velTime[0] = velTime[1] = flowAcceptedTime = t;
 			}
 		}
+	}
+
+	// The walls take over when the flow is vetoed or missing
+	if (wallVelUpdated) {
+		wallVelUpdated = false;
+		bool flowMissing = vetoed || isnan(flowAcceptedTime) || t - flowAcceptedTime > wallTakeoverDelay;
+		if (flowMissing && !(isnan(wallVelX) && isnan(wallVelY))) {
+			if (!velInitialized && !isnan(wallVelX) && !isnan(wallVelY)) { // both axes needed to start
+				velFilterX.init(wallVelX, wallVelNoise);
+				velFilterY.init(wallVelY, wallVelNoise);
+				velInitialized = true;
+				velTime[0] = velTime[1] = t;
+			} else if (velInitialized) {
+				if (!isnan(wallVelX)) { velFilterX.update(wallVelX, wallVelNoise); velTime[0] = t; }
+				if (!isnan(wallVelY)) { velFilterY.update(wallVelY, wallVelNoise); velTime[1] = t; }
+			}
+			if (isnan(wallsSince) && velInitialized) wallsSince = t;
+		}
+	}
+	if (!isnan(wallsSince) && !vetoed && !isnan(flowAcceptedTime) && t - flowAcceptedTime <= wallTakeoverDelay) { // flow is back
+		if (wallsAnnounced) print("Velocity from the flow\n");
+		wallsSince = NAN;
+		wallsAnnounced = false;
+	}
+	if (!isnan(wallsSince) && !wallsAnnounced && t - wallsSince > 0.5) { // not just a blip
+		wallsAnnounced = true;
+		print("Velocity from the walls\n");
 	}
 
 	velX = velFilterX.v;
 	velY = velFilterY.v;
 	velSigma = sqrt(fmaxf(velFilterX.p00, velFilterY.p00));
-	flowValid = velInitialized && velSigma <= velSigmaMax && t - flowTime <= flowLossTimeout;
+	float velAge = t - fminf(velTime[0], velTime[1]); // the older axis
+	flowValid = velInitialized && velSigma <= velSigmaMax && velAge <= flowLossTimeout;
 	if (!flowValid) velInitialized = false; // start over with the next good reading
 	if (!flowValid) velX = velY = 0;
 }
