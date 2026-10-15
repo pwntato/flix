@@ -8,6 +8,8 @@
 
 extern float controlTime;
 extern float voltage;
+extern bool flowValid; // flow.ino
+extern float altitude; // altitude.ino
 
 int mavlinkSysId = 1;
 
@@ -45,6 +47,12 @@ void sendMavlink() {
 	if (telemetrySlow) {
 		mavlink_msg_extended_sys_state_pack(mavlinkSysId, MAV_COMP_ID_AUTOPILOT1, &msg,
 			MAV_VTOL_STATE_UNDEFINED, landed ? MAV_LANDED_STATE_ON_GROUND : MAV_LANDED_STATE_IN_AIR);
+		sendMessage(&msg);
+	}
+
+	if (telemetrySlow) { // what the estimator knows: the velocity flag tells the pilot that velocity hold works
+		uint16_t flags = ESTIMATOR_ATTITUDE | (flowValid ? ESTIMATOR_VELOCITY_HORIZ : 0) | (valid(altitude) ? ESTIMATOR_VELOCITY_VERT : 0);
+		mavlink_msg_estimator_status_pack(mavlinkSysId, MAV_COMP_ID_AUTOPILOT1, &msg, time * 1000ULL, flags, 0, 0, 0, 0, 0, 0, 0, 0);
 		sendMessage(&msg);
 	}
 
