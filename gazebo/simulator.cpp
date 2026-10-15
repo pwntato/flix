@@ -14,6 +14,9 @@
 #include <ignition/math/Pose3.hh>
 #include <iostream>
 #include <fstream>
+#include <cstdio>
+#include <arpa/inet.h>
+#include <sys/socket.h>
 
 #include "Arduino.h"
 #include "flix.h"
@@ -63,6 +66,8 @@ private:
 	sensors::RaySensorPtr walls[WALL_COUNT];
 	common::Time wallTimes[WALL_COUNT];
 	double flowTime = 0;
+	double labTime = 0, labScanTime = 0, labRangeTime = 0;
+	int labSocket = -1;
 	event::ConnectionPtr updateConnection, resetConnection;
 	transport::NodePtr nodeHandle;
 	transport::PublisherPtr motorPub[4];
@@ -115,6 +120,7 @@ public:
 		control();
 		handleConsole();
 		processMavlink();
+		sendLabTelemetry();
 
 		applyMotorForces();
 		publishTopics();
@@ -131,6 +137,49 @@ public:
 		if (!hit && model->WorldPose().Z() < 0.05) { range = 0; hit = true; } // the ray starts inside the ground when landed
 		rangefinderRange = hit ? range : NAN;
 		rangefinderUpdated = true;
+	}
+
+	// Telemetry for the drone lab (https://bitbucket.org/pwntato/quad_copter), simulator only: the true pose as
+	// MAVLink LOCAL_POSITION_NED / ATTITUDE (local NED, north = world +x, east = world -y), and the raw
+	// rangefinder readings as JSON lines to UDP 127.0.0.1:5611, where a relay serves them over TCP.
+	void sendLabTelemetry() {
+		double now = model->GetWorld()->SimTime().Double();
+		if (now - labTime >= 0.05) { // 20 Hz
+			labTime = now;
+			auto pose = model->WorldPose();
+			auto vel = model->WorldLinearVel();
+			mavlink_message_t msg;
+			mavlink_msg_local_position_ned_pack(mavlinkSysId, MAV_COMP_ID_AUTOPILOT1, &msg, now * 1000,
+				pose.Pos().X(), -pose.Pos().Y(), -pose.Pos().Z(), vel.X(), -vel.Y(), -vel.Z());
+			sendMessage(&msg);
+			mavlink_msg_attitude_pack(mavlinkSysId, MAV_COMP_ID_AUTOPILOT1, &msg, now * 1000,
+				pose.Roll(), -pose.Pitch(), -pose.Yaw(), 0, 0, 0);
+			sendMessage(&msg);
+		}
+		if (labSocket < 0) labSocket = socket(AF_INET, SOCK_DGRAM, 0);
+		sockaddr_in addr = {};
+		addr.sin_family = AF_INET;
+		addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+		addr.sin_port = htons(5611);
+		char buf[256];
+		if (now - labScanTime >= 0.1) { // 10 Hz: front, right, back, left (bearings clockwise from the nose)
+			labScanTime = now;
+			const int order[4] = { 0, 3, 2, 1 }; // wall sensors are front, left, back, right
+			char r[4][16];
+			for (int i = 0; i < 4; i++) {
+				float v = wallRange[order[i]];
+				if (std::isnan(v)) snprintf(r[i], sizeof(r[i]), "null"); else snprintf(r[i], sizeof(r[i]), "%.3f", v);
+			}
+			int n = snprintf(buf, sizeof(buf), "{\"kind\":\"scan\",\"angle_min\":0,\"angle_inc\":1.5708,\"range_max\":4,\"ranges\":[%s,%s,%s,%s]}", r[0], r[1], r[2], r[3]);
+			sendto(labSocket, buf, n, 0, (sockaddr *)&addr, sizeof(addr));
+		}
+		if (now - labRangeTime >= 0.05) { // 20 Hz downward rangefinder
+			labRangeTime = now;
+			int n;
+			if (std::isnan(rangefinderRange)) n = snprintf(buf, sizeof(buf), "{\"kind\":\"range\",\"range\":null}");
+			else n = snprintf(buf, sizeof(buf), "{\"kind\":\"range\",\"range\":%.3f}", rangefinderRange);
+			sendto(labSocket, buf, n, 0, (sockaddr *)&addr, sizeof(addr));
+		}
 	}
 
 	void readWalls() {
