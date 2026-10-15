@@ -13,6 +13,7 @@ extern int wifiMode, wifiLongRange, wifiBroadcast, udpLocalPort, udpRemotePort, 
 extern float rcLossTimeout, descendTime, disarmTilt;
 extern float voltageScale;
 extern LowPassFilter<float> voltageFilter;
+extern float wallHoldP, wallHoldMax, wallHoldSettle, wallHoldSpeedMax;
 extern float wallFilterA, wallFilterB, wallJump, wallSettle, wallLossTimeout, wallGyroMax, wallLag;
 
 #include "config.h"
@@ -95,6 +96,10 @@ Parameter parameters[] = {
 	{"WALL_MISMATCH", &wallMismatch},
 	{"WALL_MISM_T", &wallMismatchTime},
 	{"WALL_VEL_N", &wallVelNoise},
+	{"WALL_HOLD_P", &wallHoldP},
+	{"WALL_HOLD_MAX", &wallHoldMax},
+	{"WALL_HOLD_T", &wallHoldSettle},
+	{"WALL_HOLD_V", &wallHoldSpeedMax},
 	{"WALL_TAKEOVER", &wallTakeoverDelay},
 	{"WALL_LAG", &wallLag},
 	// imu

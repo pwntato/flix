@@ -15,6 +15,7 @@ extern float climbRate;
 extern float rangefinderRange, altitude;
 extern float controlRoll, controlPitch, tiltMax;
 extern float wallVelX, wallVelY, wallLag;
+extern float wallHold(int axis, bool centered, float speed);
 extern bool wallVelUpdated;
 
 float flowX = 0, flowY = 0; // latest flow, rad/s, in the body axes (see estimateFlow for the sign convention)
@@ -23,7 +24,8 @@ bool flowUpdated = false; // set by the flow driver when there is a new reading
 
 float velX = 0, velY = 0; // estimated horizontal velocity in the body frame (forward, left), m/s
 float velSigma = INFINITY; // uncertainty of the velocity estimate, m/s
-bool flowValid = false; // velocity estimate is trustworthy
+bool flowValid = false; // velocity estimate is trustworthy on both axes
+bool velValid[2] = { false, false }; // ... on each axis (forward, left): the walls can keep one when the flow is lost
 bool flowTrusted = false; // the latest usable flow reading agreed with the accelerometer
 
 int flowQualityMin = 50; // readings with lower surface quality are ignored (0 disables the check)
@@ -197,61 +199,78 @@ void estimateFlow() {
 	velX = velFilterX.v;
 	velY = velFilterY.v;
 	velSigma = sqrt(fmaxf(velFilterX.p00, velFilterY.p00));
-	float velAge = t - fminf(velTime[0], velTime[1]); // the older axis
-	flowValid = velInitialized && velSigma <= velSigmaMax && velAge <= flowLossTimeout;
-	if (!flowValid) velInitialized = false; // start over with the next good reading
-	if (!flowValid) velX = velY = 0;
+	// each axis has to be updated recently and be certain enough; the walls can keep one while the flow sees nothing
+	velValid[0] = velInitialized && velFilterX.p00 <= velSigmaMax * velSigmaMax && t - velTime[0] <= flowLossTimeout;
+	velValid[1] = velInitialized && velFilterY.p00 <= velSigmaMax * velSigmaMax && t - velTime[1] <= flowLossTimeout;
+	flowValid = velValid[0] && velValid[1];
+	if (!velValid[0] && !velValid[1]) velInitialized = false; // start over with the next good reading
+	if (!velValid[0]) velX = 0;
+	if (!velValid[1]) velY = 0;
 }
 
-// Replace the roll and pitch sticks (range [-1, 1]) with the output of the velocity controller.
-// The sticks never change meaning while deflected: velocity hold engages only with centered sticks, and when the
-// velocity is lost with deflected sticks the drone levels out and ignores roll and pitch until they are centered.
+// Replace the roll and pitch sticks (range [-1, 1]) with the output of the velocity controller, axis by axis.
+// The sticks never change meaning while deflected: velocity hold engages only with centered sticks, and when an axis
+// loses its velocity with a deflected stick the drone levels out on that axis and ignores the stick until it is
+// centered. With the stick centered the distance to a wall along the axis is held, if there is a wall in view.
 void controlVelocity(float& roll, float& pitch) {
-	static bool active = false, latched = false, trusted = true;
-	bool centered = fabs(controlRoll) < 0.1 && fabs(controlPitch) < 0.1;
-	bool available = flowValid && !isnan(altitude);
+	enum { OFF, ON, LATCHED };
+	static bool active = false;
+	static int state[2] = { OFF, OFF }; // per axis: forward (pitch), left (roll)
+	static bool trusted = true;
+	const char *name[2] = { "forward", "sideways" };
+	float stick[2] = { controlPitch, controlRoll };
+	bool centered[2] = { fabs(controlPitch) < 0.1, fabs(controlRoll) < 0.1 };
+	bool available[2] = { velValid[0] && !isnan(altitude), velValid[1] && !isnan(altitude) };
 
 	if (!armed) {
-		active = latched = false;
-		velXPID.reset();
-		velYPID.reset();
-		return;
-	}
-
-	if (latched) {
-		if (!centered) {
-			roll = pitch = 0;
-			return;
-		}
-		latched = false;
-		print("Sticks centered, control restored\n");
-	}
-
-	if (active && !available) {
 		active = false;
+		state[0] = state[1] = OFF;
 		velXPID.reset();
 		velYPID.reset();
-		if (centered) {
-			print("Velocity lost, velocity hold off\n");
-		} else {
-			latched = true;
-			roll = pitch = 0;
-			print("Velocity lost, leveling out, center the sticks to take over\n");
-		}
 		return;
 	}
 
 	if (!active) {
-		if (!available || !centered) return; // plain angle control by the sticks
+		if (!available[0] || !available[1] || !centered[0] || !centered[1]) return; // plain angle control by the sticks
 		active = true;
+		state[0] = state[1] = ON;
 		print("Velocity hold on\n");
 	}
 
 	if (trusted && !flowTrusted) print("Flow disagrees with the accelerometer, ignoring it\n");
 	trusted = flowTrusted;
 
-	float targetX = controlPitch * velMax; // pitch stick forward is forward
-	float targetY = -controlRoll * velMax; // roll stick right is towards -y (left is +y)
-	pitch = constrain(velXPID.update(targetX - velX), -velTiltMax, velTiltMax) / tiltMax;
-	roll = -constrain(velYPID.update(targetY - velY), -velTiltMax, velTiltMax) / tiltMax;
+	float velocity[2] = { velX, velY };
+	float tilt[2] = { pitch, roll }; // output, in the stick range
+	PID *pid[2] = { &velXPID, &velYPID };
+	for (int a = 0; a < 2; a++) {
+		if (state[a] == ON && !available[a]) {
+			pid[a]->reset();
+			if (centered[a]) {
+				state[a] = OFF;
+				print("Velocity lost (%s), velocity hold off\n", name[a]);
+			} else {
+				state[a] = LATCHED;
+				print("Velocity lost (%s), leveling out, center the stick to take over\n", name[a]);
+			}
+		} else if (state[a] != ON && available[a] && centered[a]) {
+			if (state[a] == LATCHED) print("Stick centered (%s), control restored\n", name[a]);
+			else if (active && state[1 - a] != OFF) print("Velocity back (%s), velocity hold on\n", name[a]);
+			state[a] = ON;
+		}
+
+		if (state[a] == LATCHED) {
+			tilt[a] = 0;
+		} else if (state[a] == ON) {
+			float target = stick[a] * (a == 0 ? velMax : -velMax); // pitch stick forward is forward, roll stick right is -y
+			float hold = wallHold(a, centered[a], velocity[a]);
+			if (!isnan(hold)) target += hold;
+			float out = constrain(pid[a]->update(target - velocity[a]), -velTiltMax, velTiltMax) / tiltMax;
+			tilt[a] = a == 0 ? out : -out;
+		} else {
+			wallHold(a, false, 0); // forget the distance
+		}
+	}
+	pitch = tilt[0];
+	roll = tilt[1];
 }
