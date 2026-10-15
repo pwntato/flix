@@ -1,3 +1,6 @@
+> [!IMPORTANT]
+> **Hobby-only fork of [okalachev/flix](https://github.com/okalachev/flix).** This fork adds a rangefinder altitude-hold mode (`ALT`), an optical-flow velocity-hold mode (`VEL`) and sim support for both. It is for personal, non-commercial hobby use only and is **not licensed for commercial use**. The upstream project has no license yet; the author has said hobby use is fine, that commercial use is not wanted before their PCB version is released, and that they plan to release under MIT or GPL afterwards ([discussion](https://github.com/okalachev/flix/issues/48)). Licensing of this fork follows whatever upstream chooses. The original README follows unchanged.
+
 <!-- markdownlint-disable MD041 -->
 
 <p align="center">
