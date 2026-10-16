@@ -70,6 +70,8 @@ Parameter parameters[] = {
 	{"ALT_CLIMB_WU", &climbRatePID.windup},
 	{"ALT_FLT_A", &altFilterA},
 	{"ALT_FLT_B", &altFilterB},
+	{"ALT_BARO_W", &baroBandwidth},
+	{"ALT_BARO_OFF", &baroOffsetGain},
 	// optical flow
 	{"FLOW_Q_MIN", &flowQualityMin},
 	{"FLOW_RNG_MIN", &flowRangeMin},

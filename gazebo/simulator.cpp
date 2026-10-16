@@ -70,6 +70,8 @@ private:
 	sensors::RaySensorPtr walls[WALL_COUNT];
 	common::Time wallTimes[WALL_COUNT];
 	double flowTime = 0;
+	double baroTime = 0;
+	double baroDrift = 0; // m, slow weather drift of the barometer (a random walk)
 	double labTime = 0, labScanTime = 0, labRangeTime = 0;
 	int labSocket = -1;
 	event::ConnectionPtr updateConnection, resetConnection;
@@ -115,6 +117,7 @@ public:
 		readRangefinder();
 		readWalls();
 		readFlow();
+		readBarometer();
 
 		voltage = 4.2f; // dummy voltage value
 
@@ -141,6 +144,7 @@ public:
 		rangefinderTime = measured;
 		double range = rangefinder->Range(0);
 		bool hit = std::isfinite(range) && range < rangefinder->RangeMax();
+		if (hit && range < 0.001 && model->WorldPose().Z() > 0.05) hit = false; // the ray sensor reports 0 for some misses
 		if (!hit && model->WorldPose().Z() < 0.05) { range = 0; hit = true; } // the ray starts inside the ground when landed
 		rangefinderRange = hit ? range : NAN;
 		rangefinderUpdated = true;
@@ -230,6 +234,19 @@ public:
 			wallRange[i] = hit ? range : NAN;
 			wallUpdated[i] = true;
 		}
+	}
+
+	// Barometer (MS5611-like): 50 Hz, pressure from the true height in the standard atmosphere, 0.12 m noise
+	// and a slow random-walk drift (0.02 m per sqrt(s)) standing in for the weather
+	void readBarometer() {
+		double now = model->GetWorld()->SimTime().Double();
+		if (now - baroTime < 0.02) return;
+		double dt = now - baroTime;
+		baroTime = now;
+		baroDrift += ignition::math::Rand::DblNormal(0, 0.02 * std::sqrt(dt));
+		double height = model->WorldPose().Pos().Z() + baroDrift + ignition::math::Rand::DblNormal(0, 0.12);
+		baroPressure = 101325 * std::pow(1 - height / 44330, 5.255);
+		baroUpdated = true;
 	}
 
 	// Downward optical flow sensor (PMW3901-like): 100 Hz, angular rate of the ground in the body axes
