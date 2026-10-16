@@ -27,7 +27,8 @@ bool wallTurning = false; // the drone is turning fast: the wall rates are not u
 
 float wallFilterA = 0.3; // distance correction gain per measurement
 float wallFilterB = 0.06; // rate correction gain per measurement (lower is smoother but lags, and a lagging wall velocity makes the hold oscillate)
-float wallJump = 0.5; // m, a reading this far from the filter means a new surface: start over
+float wallJump = 0.2; // m, a reading this far from the filter is not used until it persists (wallConfirm readings): then it is a new surface
+int wallConfirm = 3; // readings in a row that agree with each other and not with the filter before the surface counts as new (a doorframe passing a beam is one)
 float wallSettle = 0.6; // s, the rate is used this long after the wall is acquired
 float wallLossTimeout = 0.3; // s, how long to coast without valid readings
 float wallGyroMax = 1.5; // rad/s, the rate is not used while turning fast (the sensors sweep along the wall)
@@ -41,6 +42,8 @@ float wallHoldSpeedMax = 0.1; // m/s, the drone must be this still along the axi
 
 static float wallTime[WALL_COUNT]; // time of the last valid reading
 static float wallSince[WALL_COUNT]; // time the wall was acquired
+static int wallPending[WALL_COUNT] = { 0, 0, 0, 0 }; // readings in a row that disagree with the filter
+static float wallPendingDistance[WALL_COUNT]; // ... and the latest of them
 static float wallSeededUntil[WALL_COUNT] = { 0, 0, 0, 0 }; // the rate was seeded from the velocity estimate until this time
 
 void estimateWalls() {
@@ -56,7 +59,16 @@ void estimateWalls() {
 				float elevation = wallDirection[i].x * up.x + wallDirection[i].y * up.y + wallDirection[i].z * up.z; // sin of the ray tilt
 				float distance = wallRange[i] * sqrt(fmaxf(1 - elevation * elevation, 0)); // compensate for tilt
 				float residual = distance - wallDistance[i];
-				if (isnan(wallDistance[i]) || fabs(residual) > wallJump) { // a new surface (a doorway, or the turn put a different wall in view)
+				bool disagrees = !isnan(wallDistance[i]) && fabs(residual) > wallJump;
+				if (disagrees) { // maybe a new surface (a doorway, or the turn put a different wall in view), maybe a glitch
+					if (wallPending[i] > 0 && fabs(distance - wallPendingDistance[i]) < wallJump) wallPending[i]++;
+					else wallPending[i] = 1;
+					wallPendingDistance[i] = distance;
+				} else {
+					wallPending[i] = 0;
+				}
+				if (isnan(wallDistance[i]) || (disagrees && wallPending[i] >= wallConfirm)) { // a new surface
+					wallPending[i] = 0;
 					wallDistance[i] = distance;
 					int axis = i % 2;
 					float v = axis == 0 ? velX : velY;
@@ -68,11 +80,11 @@ void estimateWalls() {
 						wallRate[i] = 0;
 						wallSince[i] = t;
 					}
-				} else {
+				} else if (!disagrees) {
 					float measDt = t - wallTime[i];
 					wallDistance[i] += wallFilterA * residual;
 					if (measDt > 0) wallRate[i] += wallFilterB * residual / measDt;
-				}
+				} // else: wait and see, the filter keeps coasting on its rate
 				wallTime[i] = t;
 			}
 		}
