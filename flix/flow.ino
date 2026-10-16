@@ -14,7 +14,8 @@ extern bool landed;
 extern float climbRate;
 extern float rangefinderRange, altitude;
 extern float controlRoll, controlPitch, tiltMax;
-extern float wallVelX, wallVelY, wallLag;
+extern float wallVelX, wallVelY, wallLag, wallVelSigma;
+extern bool wallTurning;
 extern float wallHold(int axis, bool centered, float speed);
 extern bool wallVelUpdated;
 
@@ -40,7 +41,6 @@ float velSigmaMax = 0.25; // m/s, the estimate is not used above this uncertaint
 float flowLossTimeout = 0.5; // s, give up this long after the last accepted flow reading (the accelerometer cannot vouch for longer)
 
 float wallMismatch = 0.15; // m/s, the flow velocity may differ this much from the wall distance change
-float wallVelNoise = 0.05; // m/s, noise of the wall velocity
 float wallTakeoverDelay = 0.15; // s, the walls provide the velocity when the flow has not been accepted this long
 float wallMismatchTime = 0.3; // s, flow is declared wrong after disagreeing with the walls this long (and right again after agreeing 3x as long)
 
@@ -175,13 +175,13 @@ void estimateFlow() {
 		bool flowMissing = vetoed || isnan(flowAcceptedTime) || t - flowAcceptedTime > wallTakeoverDelay;
 		if (flowMissing && !(isnan(wallVelX) && isnan(wallVelY))) {
 			if (!velInitialized && !isnan(wallVelX) && !isnan(wallVelY)) { // both axes needed to start
-				velFilterX.init(wallVelX, wallVelNoise);
-				velFilterY.init(wallVelY, wallVelNoise);
+				velFilterX.init(wallVelX, wallVelSigma);
+				velFilterY.init(wallVelY, wallVelSigma);
 				velInitialized = true;
 				velTime[0] = velTime[1] = t;
 			} else if (velInitialized) {
-				if (!isnan(wallVelX)) { velFilterX.update(wallVelX, wallVelNoise); velTime[0] = t; }
-				if (!isnan(wallVelY)) { velFilterY.update(wallVelY, wallVelNoise); velTime[1] = t; }
+				if (!isnan(wallVelX)) { velFilterX.update(wallVelX, wallVelSigma); velTime[0] = t; }
+				if (!isnan(wallVelY)) { velFilterY.update(wallVelY, wallVelSigma); velTime[1] = t; }
 			}
 			if (isnan(wallsSince) && velInitialized) wallsSince = t;
 		}
@@ -194,6 +194,11 @@ void estimateFlow() {
 	if (!isnan(wallsSince) && !wallsAnnounced && t - wallsSince > 0.5) { // not just a blip
 		wallsAnnounced = true;
 		print("Velocity from the walls\n");
+	}
+
+	if (wallTurning) { // the wall velocity is blind while the nose turns: the accelerometer coasts through it, the clock stops
+		if (!isnan(velTime[0])) velTime[0] += dt;
+		if (!isnan(velTime[1])) velTime[1] += dt;
 	}
 
 	velX = velFilterX.v;

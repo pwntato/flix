@@ -8,6 +8,8 @@
 extern float t, dt;
 extern Vector gyro;
 extern Quaternion attitude;
+extern float velX, velY; // fused velocity estimate (flow.ino)
+extern bool velValid[2];
 
 const int WALL_COUNT = 4; // front, left, back, right
 const Vector wallDirection[WALL_COUNT] = { Vector(1, 0, 0), Vector(0, 1, 0), Vector(-1, 0, 0), Vector(0, -1, 0) }; // body axes
@@ -19,6 +21,9 @@ float wallRate[WALL_COUNT] = { 0, 0, 0, 0 }; // d(distance)/dt, m/s
 bool wallVelUpdated = false; // set when there is a new wall velocity
 float wallLag = 0.1; // s, delay of the wall velocity (the rate filter)
 float wallVelX = NAN, wallVelY = NAN; // velocity in the body frame (forward, left) from the wall distance change, NAN if unknown
+float wallVelNoiseBase = 0.05; // m/s, noise of the measured wall velocity
+float wallVelSigma = 0.05; // m/s, noise of the wall velocity: larger while a rate is still the carried-over seed
+bool wallTurning = false; // the drone is turning fast: the wall rates are not used (the sensors sweep along the walls)
 
 float wallFilterA = 0.3; // distance correction gain per measurement
 float wallFilterB = 0.06; // rate correction gain per measurement (lower is smoother but lags, and a lagging wall velocity makes the hold oscillate)
@@ -26,6 +31,8 @@ float wallJump = 0.5; // m, a reading this far from the filter means a new surfa
 float wallSettle = 0.6; // s, the rate is used this long after the wall is acquired
 float wallLossTimeout = 0.3; // s, how long to coast without valid readings
 float wallGyroMax = 1.5; // rad/s, the rate is not used while turning fast (the sensors sweep along the wall)
+float wallSeedTime = 1.0; // s, a rate carried over from the velocity estimate counts as less certain this long
+float wallSeedSigma = 0.15; // m/s, noise of the wall velocity while it is carried over
 
 float wallHoldP = 0.4; // 1/s, distance error to velocity target (0 disables the wall position hold)
 float wallHoldMax = 0.3; // m/s, the most the hold moves the drone back
@@ -34,6 +41,7 @@ float wallHoldSpeedMax = 0.1; // m/s, the drone must be this still along the axi
 
 static float wallTime[WALL_COUNT]; // time of the last valid reading
 static float wallSince[WALL_COUNT]; // time the wall was acquired
+static float wallSeededUntil[WALL_COUNT] = { 0, 0, 0, 0 }; // the rate was seeded from the velocity estimate until this time
 
 void estimateWalls() {
 	Vector up = Quaternion::rotateVector(Vector(0, 0, 1), attitude); // world up in the body axes
@@ -48,10 +56,18 @@ void estimateWalls() {
 				float elevation = wallDirection[i].x * up.x + wallDirection[i].y * up.y + wallDirection[i].z * up.z; // sin of the ray tilt
 				float distance = wallRange[i] * sqrt(fmaxf(1 - elevation * elevation, 0)); // compensate for tilt
 				float residual = distance - wallDistance[i];
-				if (isnan(wallDistance[i]) || fabs(residual) > wallJump) {
+				if (isnan(wallDistance[i]) || fabs(residual) > wallJump) { // a new surface (a doorway, or the turn put a different wall in view)
 					wallDistance[i] = distance;
-					wallRate[i] = 0;
-					wallSince[i] = t;
+					int axis = i % 2;
+					float v = axis == 0 ? velX : velY;
+					if (velValid[axis]) { // carry the velocity over: the distance to the new wall changes at the closing speed
+						wallRate[i] = i < 2 ? -v : v;
+						wallSince[i] = t - wallSettle;
+						wallSeededUntil[i] = t + wallSeedTime;
+					} else {
+						wallRate[i] = 0;
+						wallSince[i] = t;
+					}
 				} else {
 					float measDt = t - wallTime[i];
 					wallDistance[i] += wallFilterA * residual;
@@ -69,6 +85,7 @@ void estimateWalls() {
 
 	// Body velocity along an axis is the closing speed of the wall in front of it, or the opening speed of the one behind
 	bool turning = fabs(gyro.x) > wallGyroMax || fabs(gyro.y) > wallGyroMax || fabs(gyro.z) > wallGyroMax;
+	wallTurning = turning;
 	float vel[2];
 	for (int axis = 0; axis < 2; axis++) {
 		int pos = axis, neg = axis + 2; // sensors looking along + and - of the axis
@@ -80,6 +97,10 @@ void estimateWalls() {
 	}
 	wallVelX = vel[0];
 	wallVelY = vel[1];
+	wallVelSigma = wallVelNoiseBase;
+	for (int i = 0; i < WALL_COUNT; i++) {
+		if (t < wallSeededUntil[i] && !isnan(vel[i % 2])) wallVelSigma = wallSeedSigma;
+	}
 }
 
 // Wall position hold: with the stick of an axis centered and a wall in view along it, remember the distance to the
