@@ -31,7 +31,7 @@ bool flowTrusted = false; // the latest usable flow reading agreed with the acce
 
 int flowQualityMin = 50; // readings with lower surface quality are ignored (0 disables the check)
 float flowRangeMin = 0.1; // m, the sensor is blind when closer to the ground
-float flowRangeMax = 3.5; // m, the sensor is unreliable when higher
+float flowRangeMax = 8; // m, the sensor is unreliable when higher (above the rangefinder's range the fused altitude is the height)
 float flowRateMax = 6; // rad/s, readings near the sensor limit are ignored
 float flowNoise = 0.04; // m/s, flow velocity noise at good quality
 float flowGate = 3; // flow readings further than this many sigmas from the prediction are rejected
@@ -141,7 +141,8 @@ void estimateFlow() {
 
 	if (flowUpdated) {
 		flowUpdated = false;
-		float h = rangefinderRange; // distance to the ground along the sensor axis
+		// distance to the ground along the sensor axis: the rangefinder, or above its range the fused altitude
+		float h = !isnan(rangefinderRange) ? rangefinderRange : (up.z > 0.5f ? altitude / up.z : NAN);
 		bool usable = flowQuality >= flowQualityMin && !isnan(h) && h >= flowRangeMin && h <= flowRangeMax &&
 			fabs(flowX) < flowRateMax && fabs(flowY) < flowRateMax;
 		if (usable) {

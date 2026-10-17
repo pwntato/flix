@@ -258,7 +258,7 @@ public:
 		Vector3d pos = model->WorldPose().Pos();
 		Vector3d v = body->RelativeLinearVel();
 		Vector3d w = imu->AngularVelocity();
-		double h = std::isnan(rangefinderRange) ? 0 : rangefinderRange;
+		double h = std::max(0.0, pos.Z() - 0.0139) / std::max(0.3, std::cos(model->WorldPose().Roll()) * std::cos(model->WorldPose().Pitch())); // true distance to the floor along the sensor axis (the rangefinder is blind above 4 m)
 
 		Surface s = defaultSurface;
 		for (const Surface& area : surfaces) {
@@ -267,7 +267,7 @@ public:
 
 		double q = s.quality;
 		if (h < 0.08) q = 0; // too close, out of focus
-		else if (h > 1) q *= std::max(0.2, 1 - (h - 1) / 4); // less detail from higher up
+		else if (h > 1) q *= std::max(0.4, 1 - (h - 1) / 12); // less detail from higher up
 
 		double noise = 0.02 * s.noise; // rad/s
 		double fx = (-v.X() / std::max(h, 0.05) + w.Y()) * s.gain;
