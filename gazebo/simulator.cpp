@@ -26,6 +26,7 @@
 #include "altitude.ino"
 #include "flow.ino"
 #include "walls.ino"
+#include "ceiling.ino"
 #include "console.ino"
 #include "control.ino"
 #include "estimate.ino"
@@ -67,6 +68,8 @@ private:
 	common::Time rangefinderTime;
 	sensors::CameraSensorPtr camera;
 	event::ConnectionPtr cameraConnection;
+	sensors::RaySensorPtr ceilingSensor;
+	common::Time ceilingTime;
 	sensors::RaySensorPtr walls[WALL_COUNT];
 	common::Time wallTimes[WALL_COUNT];
 	double flowTime = 0;
@@ -85,6 +88,7 @@ public:
 		this->body = this->model->GetLink("body");
 		this->imu = dynamic_pointer_cast<sensors::ImuSensor>(sensors::get_sensor(model->GetScopedName(true) + "::body::imu")); // default::flix::body::imu
 		this->rangefinder = dynamic_pointer_cast<sensors::RaySensor>(sensors::get_sensor(model->GetScopedName(true) + "::body::rangefinder")); // default::flix::body::rangefinder
+		this->ceilingSensor = dynamic_pointer_cast<sensors::RaySensor>(sensors::get_sensor(model->GetScopedName(true) + "::body::ceiling"));
 		const char *wallNames[WALL_COUNT] = { "wall_front", "wall_left", "wall_back", "wall_right" };
 		for (int i = 0; i < WALL_COUNT; i++) this->walls[i] = dynamic_pointer_cast<sensors::RaySensor>(sensors::get_sensor(model->GetScopedName(true) + "::body::" + wallNames[i]));
 		this->camera = dynamic_pointer_cast<sensors::CameraSensor>(sensors::get_sensor(model->GetScopedName(true) + "::body::camera"));
@@ -116,6 +120,7 @@ public:
 
 		readRangefinder();
 		readWalls();
+		readCeiling();
 		readFlow();
 		readBarometer();
 
@@ -142,7 +147,7 @@ public:
 		common::Time measured = rangefinder->LastMeasurementTime();
 		if (measured == rangefinderTime) return; // no new reading
 		rangefinderTime = measured;
-		double range = rangefinder->Range(0);
+		double range = coneRange(rangefinder);
 		bool hit = std::isfinite(range) && range < rangefinder->RangeMax();
 		if (hit && range < 0.001 && model->WorldPose().Z() > 0.05) hit = false; // the ray sensor reports 0 for some misses
 		if (!hit && model->WorldPose().Z() < 0.05) { range = 0; hit = true; } // the ray starts inside the ground when landed
@@ -224,12 +229,32 @@ public:
 		free(jpeg);
 	}
 
+	// A ToF sensor looks through a cone and reports the nearest return: the nearest of the sensor's rays
+	// (the ray sensor reports about 0 for some misses, so readings under 5 cm are skipped)
+	static double coneRange(sensors::RaySensorPtr sensor) {
+		double nearest = INFINITY;
+		for (int i = 0; i < sensor->RangeCount(); i++) {
+			double r = sensor->Range(i);
+			if (std::isfinite(r) && r > 0.05 && r < nearest) nearest = r;
+		}
+		return nearest;
+	}
+
+	void readCeiling() {
+		common::Time measured = ceilingSensor->LastMeasurementTime();
+		if (measured == ceilingTime) return;
+		ceilingTime = measured;
+		double range = coneRange(ceilingSensor);
+		ceilingRange = range < ceilingSensor->RangeMax() ? range : NAN;
+		ceilingUpdated = true;
+	}
+
 	void readWalls() {
 		for (int i = 0; i < WALL_COUNT; i++) {
 			common::Time measured = walls[i]->LastMeasurementTime();
 			if (measured == wallTimes[i]) continue; // no new reading
 			wallTimes[i] = measured;
-			double range = walls[i]->Range(0);
+			double range = coneRange(walls[i]);
 			bool hit = std::isfinite(range) && range < walls[i]->RangeMax();
 			wallRange[i] = hit ? range : NAN;
 			wallUpdated[i] = true;

@@ -40,7 +40,17 @@
 				<update_rate>50</update_rate>
 				<pose>0 0 -0.0139 0 1.5708 0</pose><!-- just below the body, so the ray does not hit the drone itself -->
 				<ray>
-					<scan><horizontal><samples>1</samples><resolution>1</resolution><min_angle>0</min_angle><max_angle>0</max_angle></horizontal></scan>
+					<scan><horizontal><samples>5</samples><resolution>1</resolution><min_angle>-0.2356</min_angle><max_angle>0.2356</max_angle></horizontal><vertical><samples>5</samples><resolution>1</resolution><min_angle>-0.2356</min_angle><max_angle>0.2356</max_angle></vertical></scan><!-- 27 degree cone (VL53L1X): the reading is the nearest of the 25 rays -->
+					<range><min>0</min><max>4.0</max><resolution>0.001</resolution></range>
+					<noise><type>gaussian</type><mean>0</mean><stddev>0.01</stddev></noise>
+				</ray>
+			</sensor>
+			<sensor name="ceiling" type="ray"><!-- upward ToF rangefinder, VL53L1X-like -->
+				<always_on>1</always_on>
+				<update_rate>50</update_rate>
+				<pose>0 0 0.03 0 -1.5708 0</pose>
+				<ray>
+					<scan><horizontal><samples>5</samples><resolution>1</resolution><min_angle>-0.2356</min_angle><max_angle>0.2356</max_angle></horizontal><vertical><samples>5</samples><resolution>1</resolution><min_angle>-0.2356</min_angle><max_angle>0.2356</max_angle></vertical></scan><!-- 27 degree cone (VL53L1X): the reading is the nearest of the 25 rays -->
 					<range><min>0</min><max>4.0</max><resolution>0.001</resolution></range>
 					<noise><type>gaussian</type><mean>0</mean><stddev>0.01</stddev></noise>
 				</ray>
@@ -50,7 +60,7 @@
 				<update_rate>50</update_rate>
 				<pose>0.08 0 0 0 0 0</pose><!-- outside the body, so the ray does not hit the drone itself -->
 				<ray>
-					<scan><horizontal><samples>1</samples><resolution>1</resolution><min_angle>0</min_angle><max_angle>0</max_angle></horizontal></scan>
+					<scan><horizontal><samples>1</samples><resolution>1</resolution><min_angle>0</min_angle><max_angle>0</max_angle></horizontal></scan><!-- 15 degree cone (VL53L1X with a narrowed field of view, so the floor stays out of view): the reading is the nearest of the 25 rays -->
 					<range><min>0</min><max>4.0</max><resolution>0.001</resolution></range>
 					<noise><type>gaussian</type><mean>0</mean><stddev>0.01</stddev></noise>
 				</ray>
@@ -60,7 +70,7 @@
 				<update_rate>50</update_rate>
 				<pose>0 0.08 0 0 0 1.5708</pose><!-- outside the body, so the ray does not hit the drone itself -->
 				<ray>
-					<scan><horizontal><samples>1</samples><resolution>1</resolution><min_angle>0</min_angle><max_angle>0</max_angle></horizontal></scan>
+					<scan><horizontal><samples>1</samples><resolution>1</resolution><min_angle>0</min_angle><max_angle>0</max_angle></horizontal></scan><!-- 15 degree cone (VL53L1X with a narrowed field of view, so the floor stays out of view): the reading is the nearest of the 25 rays -->
 					<range><min>0</min><max>4.0</max><resolution>0.001</resolution></range>
 					<noise><type>gaussian</type><mean>0</mean><stddev>0.01</stddev></noise>
 				</ray>
@@ -70,7 +80,7 @@
 				<update_rate>50</update_rate>
 				<pose>-0.08 0 0 0 0 3.14159</pose><!-- outside the body, so the ray does not hit the drone itself -->
 				<ray>
-					<scan><horizontal><samples>1</samples><resolution>1</resolution><min_angle>0</min_angle><max_angle>0</max_angle></horizontal></scan>
+					<scan><horizontal><samples>1</samples><resolution>1</resolution><min_angle>0</min_angle><max_angle>0</max_angle></horizontal></scan><!-- 15 degree cone (VL53L1X with a narrowed field of view, so the floor stays out of view): the reading is the nearest of the 25 rays -->
 					<range><min>0</min><max>4.0</max><resolution>0.001</resolution></range>
 					<noise><type>gaussian</type><mean>0</mean><stddev>0.01</stddev></noise>
 				</ray>
@@ -80,7 +90,7 @@
 				<update_rate>50</update_rate>
 				<pose>0 -0.08 0 0 0 -1.5708</pose><!-- outside the body, so the ray does not hit the drone itself -->
 				<ray>
-					<scan><horizontal><samples>1</samples><resolution>1</resolution><min_angle>0</min_angle><max_angle>0</max_angle></horizontal></scan>
+					<scan><horizontal><samples>1</samples><resolution>1</resolution><min_angle>0</min_angle><max_angle>0</max_angle></horizontal></scan><!-- 15 degree cone (VL53L1X with a narrowed field of view, so the floor stays out of view): the reading is the nearest of the 25 rays -->
 					<range><min>0</min><max>4.0</max><resolution>0.001</resolution></range>
 					<noise><type>gaussian</type><mean>0</mean><stddev>0.01</stddev></noise>
 				</ray>

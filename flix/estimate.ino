@@ -22,6 +22,7 @@ void estimate() {
 	applyLevel();
 	estimateAltitude();
 	estimateWalls();
+	estimateCeiling();
 	estimateFlow();
 }
 

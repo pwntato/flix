@@ -19,6 +19,7 @@ bool wallUpdated[WALL_COUNT] = { false, false, false, false }; // set by the dri
 float wallDistance[WALL_COUNT] = { NAN, NAN, NAN, NAN }; // filtered horizontal distance to the wall, m
 float wallRate[WALL_COUNT] = { 0, 0, 0, 0 }; // d(distance)/dt, m/s
 bool wallVelUpdated = false; // set when there is a new wall velocity
+int wallMask = 15; // which wall sensors are installed (bit 0 front, 1 left, 2 back, 3 right)
 float wallLag = 0.1; // s, delay of the wall velocity (the rate filter)
 float wallVelX = NAN, wallVelY = NAN; // velocity in the body frame (forward, left) from the wall distance change, NAN if unknown
 float wallVelNoiseBase = 0.05; // m/s, noise of the measured wall velocity
@@ -54,7 +55,7 @@ void estimateWalls() {
 
 		if (wallUpdated[i]) {
 			wallUpdated[i] = false;
-			if (!isnan(wallRange[i])) {
+			if (!isnan(wallRange[i]) && (wallMask >> i & 1)) {
 				wallVelUpdated = true;
 				float elevation = wallDirection[i].x * up.x + wallDirection[i].y * up.y + wallDirection[i].z * up.z; // sin of the ray tilt
 				float distance = wallRange[i] * sqrt(fmaxf(1 - elevation * elevation, 0)); // compensate for tilt

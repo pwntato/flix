@@ -13,6 +13,8 @@ extern int wifiMode, wifiLongRange, wifiBroadcast, udpLocalPort, udpRemotePort, 
 extern float rcLossTimeout, descendTime, disarmTilt;
 extern float voltageScale;
 extern LowPassFilter<float> voltageFilter;
+extern int wallMask;
+extern float ceilingMargin;
 extern float wallHoldP, wallHoldMax, wallHoldSettle, wallHoldSpeedMax;
 extern float wallFilterA, wallFilterB, wallJump, wallSettle, wallLossTimeout, wallGyroMax, wallLag, wallVelNoiseBase, wallSeedTime, wallSeedSigma;
 
@@ -106,6 +108,8 @@ Parameter parameters[] = {
 	{"WALL_HOLD_V", &wallHoldSpeedMax},
 	{"WALL_TAKEOVER", &wallTakeoverDelay},
 	{"WALL_LAG", &wallLag},
+	{"WALL_MASK", &wallMask},
+	{"CEIL_MARGIN", &ceilingMargin},
 	// imu
 	{"IMU_MODEL", &imuModel},
 	{"IMU_BUS", &imuBus},

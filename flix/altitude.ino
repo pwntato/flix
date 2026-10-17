@@ -12,6 +12,7 @@ extern Quaternion attitude;
 extern bool armed;
 extern Vector acc;
 
+extern float ceilingDistance, ceilingMargin;
 float rangefinderRange = NAN; // latest rangefinder reading, m (NAN if invalid or out of range)
 bool rangefinderUpdated = false; // set by the rangefinder driver when there is a new reading
 float altitude = NAN; // estimated height above the ground, m (NAN if unknown)
@@ -151,6 +152,10 @@ float controlAltitude() {
 	}
 
 	if (altitude >= altitudeMax && climbRateTarget > 0) climbRateTarget = 0;
+	if (!isnan(ceilingDistance)) { // slow down towards the ceiling, and back off if too close
+		float climbLimit = altitudeP * (ceilingDistance - ceilingMargin);
+		if (climbRateTarget > climbLimit) climbRateTarget = fmaxf(climbLimit, -climbRateMax);
+	}
 
 	if (altitude < 0.05 && climbRateTarget <= 0) { // on the ground, no thrust
 		climbRatePID.reset();
